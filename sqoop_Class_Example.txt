@@ -1,0 +1,362 @@
+﻿listing database & Tables
+
+$sqoop list-databases --connect jdbc:mysql://localhost/ --username root --password cloudera
+
+$sqoop list-tables \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password cloudera
+
+**************************
+Secureway to enter password using password file or -p 
+
+$ cd /home/cloudera/sqoop
+$ echo -n "cloudera" > passwordfile
+$ sqoop list-tables \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password-file file:///home/cloudera/sqoop/passwordfile
+
+or 
+$ sqoop list-tables \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P
+
+***********************
+
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password cloudera \
+--table orders
+
+*************
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password cloudera \
+--table products \
+--where "product_id = 1"
+
+************
+
+Import all but exclude some tables
+
+$ sqoop import-all-tables 
+--connect jdbc:mysql://localhost/retail_db \
+--username root --password cloudera
+--exclude-tables customers, orders -m 1
+
+****************
+Importing partial Table Data into HDFS (Filtering data while importing)
+
+We can also import specific data in RDBMS table to HDFS, by specifying the
+Where Class in Sqoop command as shown below
+
+$ sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root --password cloudera \
+--table customers -m 1 \
+--target-dir /user/cloudera/customers \
+--where cust_id=1
+
+Import only specified columns from products table
+
+$ sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username cloudera --password cloudera  \
+--table products \
+--columns "product_id, product_name"
+
+*****************************
+
+Import all tables and compress in Gzip format
+$ sqoop import-all-tables \
+--connect jdbc:mysql://localhost/retail_db \
+--username root --password cloudera \
+--compress
+
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root --password cloudera \
+--table products \
+--compress \
+--compression-codec org.apache.hadoop.io.compress.BZip2Codec
+
+or 
+
+--compression-codec org.apache.hadoop.io.compress.SnappyCodec
+
+
+***************
+--target-dir
+This option is used when you've to import a single table using import-table tool. For each table you've to
+mention the directory and it must not already exist in the path.
+
+
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P \
+--table customers \
+--where "customer_city = 'Littleton'" \
+--target-dir /user/cloudera/customers
+
+**************
+--warehouse-dir
+
+sqoop import-all-tables \
+--connect jdbc:mysql://localhost/retail_db \
+--username cloudera --password cloudera \
+--fields-terminated-by '\t' \
+--warehouse-dir /user/cloudera/ware-house
+
+*******************
+sequencefile file
+
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P \
+--table customers \
+--as-sequencefile \
+--target-dir /user/cloudera/customers \
+--compress \
+--compression-codec org.apache.hadoop.io.compress.BZip2Codec
+
+*************
+avrodatafile
+
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P \
+--table customers \
+--target-dir /user/cloudera/customers \
+--as-avrodatafile
+
+Argument	Description
+--as-avrodatafile	Imports data to Avro Data Files
+--as-sequencefile	Imports data to SequenceFiles
+--as-textfile	Imports data as plain text (default)
+--as-parquetfile	Imports data to Parquet Files
+
+***********
+#execute mysql.table.sql
+mysql> source mysql.table.sql
+
+Speedup the data transfer --direct
+
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P \
+--table product \
+--target-dir /user/cloudera/product \
+--direct
+
+***********
+Controlling parallelism
+
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P \
+--table cities \
+--num-mappers 1 
+or -m1
+
+****************************
+Incremental update/insert
+
+Incremental Import in Sqoop To Load Data From Mysql To HDFS
+
+what if new records are added to the database? Could re-import all records, but this is inefficient.
+
+Sqoop supports two types of incremental imports: append and lastmodified. You can use the –incremental argument to specify the type of incremental import to perform. You should specify the append mode when importing a table, where new rows are continually added with increasing row id values. You must specify the column containing the row’s id with –check-column. 
+Sqoop imports rows where the check column has a value greater than the one specified with –last-value.
+
+An alternate table update strategy supported by Sqoop is called lastmodified mode. This should be used when rows of the source table is updated, and each such update will set the value of a last-modified column to the current timestamp. Rows where the check column holds a timestamp more recent than the timestamp specified with –last-value are imported.
+At the end of an incremental import, the value which should be specified as –last-value for a subsequent import is printed to the screen. When running a subsequent import, you should specify –last-value in this way to ensure you import only the new or updated data. This is handled automatically by creating an  incremental import as a saved job, which is the preferred mechanism for performing a recurring incremental
+import.
+
+Sqoop’s incremental append mode imports only new records (based on value of last record in specified 
+column)
+
+$ sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username cloudera --password cloudera \
+--table orders \
+--incremental append \
+--check-column order_id \
+--last-value 6713821
+
+$ sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P \
+--table visits
+
+mysql> INSERT INTO `visits`(`id`, `city`, `last_update_date`) VALUES(3, "Jicin", "1987-02-03 02:02:02");
+
+$ sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password cloudera \
+--table visits \
+--incremental lastmodified \
+--check-column last_update_date \
+--last-value "1987-02-02 02:02:02"
+
+**********
+Sqoop Job
+
+
+sqoop job --create visits1 -- import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P \
+--table visits \
+
+$sqoop job --list
+$sqoop job -show visits
+$sqoop job --exec visits 
+
+***************************
+importig and joining two tables
+$ export CONDITIONS="id=1"
+
+$sqoop import \
+--connect jdbc:mysql://localhost/sqoop \
+--username sqoop \
+--password sqoop \
+--query 'SELECT normcities.id, \
+countries.country, \
+normcities.city \
+FROM normcities \
+JOIN countries USING(country_id) \
+WHERE $CONDITIONS' \
+--split-by id \
+--target-dir cities
+  
+***********************
+ 
+import hbase XXXX
+
+Hbase>
+create 'cities', 'world'
+
+hbase> list 
+
+hbase > scan 'cities'
+
+sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+-P \
+--table cities \
+--hbase-table cities \
+--column-family world
+
+
+**********
+Import data directly into hive 
+
+
+import hive table
+$ sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password cloudera \
+--table cities \
+--hive-import
+
+
+sqoop import-all-tables \
+    -m 2 \
+    --connect jdbc:mysql://localhost:3306/retail_db \
+    --username=root \
+    --password=cloudera \
+    --compression-codec=snappy \
+    --as-parquetfile \
+    --warehouse-dir=/user/hive/warehouse \
+    --hive-import
+                   
+				   
+import hive table  with name
+
+$ sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password cloudera \
+--table cities \
+--warehouse-dir /user/cloudera/sqoop/ \
+--hive-import \
+--create-hive-table \
+--hive-table retail.cities
+
+$ sqoop import \
+--connect jdbc:mysql://localhost/retail_db \
+--username root \
+--password cloudera \
+--table orders \
+--hive-import 
+				  
+
+********
+sqoop export
+
+mysql> CREATE TABLE citi (
+  id INTEGER UNSIGNED NOT NULL,
+ country VARCHAR(50),
+  city VARCHAR(150)
+  );
+
+ 
+$ sqoop export \
+--connect jdbc:mysql://localhost/retail_db\
+--username root  \
+--password cloudera \
+--table citi \
+--export-dir /user/cloudera/cities
+
+
+sqoop export \
+--connect jdbc:mysql://localhost/retail_db\
+--username root \
+--password cloudera \
+--table cities \
+--export-dir /user/cloudera/sqoop/cities \
+
+
+sqoop export \
+--connect jdbc:mysql://localhost/retail_db\
+--username root \
+--password cloudera \
+--table citi \
+--export-dir /user/cloudera/sqoop/cities \
+
+*****************
+sqoop codegen
+ sqoop codegen --connect jdbc:mysql://localhost/retail_db \
+ --username root --password cloudera --table cities
+ 
+ 
+****************
+To run script:
+
+./sqoop_job.sh  categories /user/cloudera/myjob
+
+Script body:
+#!/bin/sh
+echo "creating sqoop myjob"
+export MYCONN="--connect jdbc:mysql://localhost/retail_db --username root --password cloudera"
+sqoop job --create myjob -- import $MYCONN --table ${1} --target-dir ${2} -m 1
+echo "Job created"
+sqoop job --list 
+echo "please enter job name"
+read jobname
+sqoop job --exec $jobname
+
+
